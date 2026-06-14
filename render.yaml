@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: xeno-genie-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run db:generate && npm run build
+    startCommand: npm run start -w @xeno/api
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: WEB_ORIGIN
+        sync: false
+      - key: CRM_SERVICE_TOKEN
+        generateValue: true
+      - key: CALLBACK_SECRET
+        generateValue: true
+
+  - type: web
+    name: xeno-genie-channel-simulator
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build -w @xeno/channel-simulator
+    startCommand: npm run start -w @xeno/channel-simulator
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: CRM_INTERNAL_URL
+        sync: false
+      - key: CRM_SERVICE_TOKEN
+        sync: false
+      - key: CALLBACK_SECRET
+        sync: false
+      - key: SIMULATOR_FAILURE_RATE
+        value: "0.08"

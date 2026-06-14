@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Channel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum CustomerStatus {
+  ACTIVE
+  DORMANT
+  AT_RISK
+  CHURNED
+}
+
+enum OrderStatus {
+  COMPLETED
+  REFUNDED
+  CANCELLED
+}
+
+enum SegmentSource {
+  AI
+  SYSTEM
+  MANUAL
+}
+
+enum CampaignStatus {
+  DRAFT
+  APPROVED
+  RUNNING
+  COMPLETED
+  PAUSED
+}
+
+enum CommunicationStatus {
+  QUEUED
+  CLAIMED
+  SENT
+  DELIVERED
+  FAILED
+  OPENED
+  READ
+  CLICKED
+  PURCHASED
+}
+
+enum EventType {
+  SENT
+  DELIVERED
+  FAILED
+  OPENED
+  READ
+  CLICKED
+  PURCHASED
+}
+
+enum InsightCategory {
+  OPPORTUNITY
+  FATIGUE
+  PERFORMANCE
+  REVENUE
+}
+
+enum InsightSeverity {
+  INFO
+  POSITIVE
+  WARNING
+  CRITICAL
+}
+
+enum RecommendationStatus {
+  PENDING
+  ACCEPTED
+  DISMISSED
+}
+
+model Brand {
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String
+  timezone        String           @default("Asia/Kolkata")
+  currency        String           @default("USD")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  customers       Customer[]
+  campaigns       Campaign[]
+  segments        Segment[]
+  aiInsights      AiInsight[]
+  recommendations Recommendation[]
+  auditLogs       AuditLog[]
+  campaignPlans   CampaignPlan[]
+}
+
+model Customer {
+  id                  String             @id @default(uuid()) @db.Uuid
+  brandId             String             @db.Uuid
+  externalId          String
+  firstName           String
+  lastName            String
+  email               String
+  phone               String?
+  city                String?
+  ageGroup            String?
+  preferredChannel    Channel
+  status              CustomerStatus     @default(ACTIVE)
+  loyaltyScore        Int                @default(0)
+  fatigueScore        Int                @default(0)
+  opportunityScore    Int                @default(0)
+  scoreExplanation    Json?
+  totalSpend          Decimal            @default(0) @db.Decimal(12, 2)
+  orderCount          Int                @default(0)
+  lastOrderAt         DateTime?
+  lastActiveAt        DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  brand               Brand              @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  orders              Order[]
+  communications      Communication[]
+  recommendations     Recommendation[]
+
+  @@unique([brandId, externalId])
+  @@unique([brandId, email])
+  @@index([brandId, opportunityScore])
+  @@index([brandId, fatigueScore])
+  @@index([brandId, status])
+}
+
+model Order {
+  id          String      @id @default(uuid()) @db.Uuid
+  customerId  String      @db.Uuid
+  orderNumber String      @unique
+  total       Decimal     @db.Decimal(12, 2)
+  status      OrderStatus @default(COMPLETED)
+  items       Json
+  source      String?
+  orderedAt   DateTime
+  createdAt   DateTime    @default(now())
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, orderedAt])
+  @@index([orderedAt])
+}
+
+model Segment {
+  id            String        @id @default(uuid()) @db.Uuid
+  brandId       String        @db.Uuid
+  name          String
+  description   String?
+  rules         Json
+  estimatedSize Int
+  source        SegmentSource @default(AI)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  brand         Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  campaigns     Campaign[]
+
+  @@index([brandId, createdAt])
+}
+
+model CampaignPlan {
+  id        String   @id @default(uuid()) @db.Uuid
+  brandId   String   @db.Uuid
+  goal      String
+  plan      Json
+  source    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId, createdAt])
+}
+
+model Campaign {
+  id              String         @id @default(uuid()) @db.Uuid
+  brandId         String         @db.Uuid
+  segmentId       String?        @db.Uuid
+  name            String
+  goal            String
+  channel         Channel
+  status          CampaignStatus @default(DRAFT)
+  message         String
+  aiReasoning     Json
+  expectedOutcome Json
+  approvedAt      DateTime?
+  launchedAt      DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  brand           Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  segment         Segment?       @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  communications  Communication[]
+  recommendations Recommendation[]
+
+  @@index([brandId, status])
+  @@index([brandId, createdAt])
+}
+
+model Communication {
+  id            String              @id @default(uuid()) @db.Uuid
+  campaignId    String              @db.Uuid
+  customerId    String              @db.Uuid
+  channel       Channel
+  status        CommunicationStatus @default(QUEUED)
+  recipient     String
+  message       String
+  attemptCount  Int                 @default(0)
+  availableAt   DateTime            @default(now())
+  leaseUntil    DateTime?
+  lastError     String?
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  openedAt      DateTime?
+  clickedAt     DateTime?
+  purchasedAt   DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  campaign      Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer      Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  events        CommunicationEvent[]
+
+  @@unique([campaignId, customerId])
+  @@index([status, availableAt])
+  @@index([campaignId, status])
+  @@index([customerId, createdAt])
+}
+
+model CommunicationEvent {
+  id              String        @id @default(uuid()) @db.Uuid
+  communicationId String        @db.Uuid
+  eventId         String        @unique @db.Uuid
+  type            EventType
+  metadata        Json
+  occurredAt      DateTime
+  receivedAt      DateTime      @default(now())
+  communication   Communication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+
+  @@index([communicationId, occurredAt])
+  @@index([type, occurredAt])
+}
+
+model AiInsight {
+  id          String           @id @default(uuid()) @db.Uuid
+  brandId     String           @db.Uuid
+  category    InsightCategory
+  title       String
+  narrative   String
+  severity    InsightSeverity  @default(INFO)
+  evidence    Json
+  isActive    Boolean          @default(true)
+  generatedAt DateTime         @default(now())
+  expiresAt   DateTime?
+  brand       Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId, isActive, generatedAt])
+}
+
+model Recommendation {
+  id         String               @id @default(uuid()) @db.Uuid
+  brandId    String               @db.Uuid
+  campaignId String?              @db.Uuid
+  customerId String?              @db.Uuid
+  type       String
+  title      String
+  reasoning  String
+  payload    Json
+  status     RecommendationStatus @default(PENDING)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  brand      Brand                @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  campaign   Campaign?            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer   Customer?            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([brandId, status, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  brandId    String   @db.Uuid
+  action     String
+  entityType String
+  entityId   String?
+  actor      String   @default("system")
+  metadata   Json
+  createdAt  DateTime @default(now())
+  brand      Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId, createdAt])
+  @@index([entityType, entityId])
+}

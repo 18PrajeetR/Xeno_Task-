@@ -1,0 +1,30 @@
+{
+  "name": "xeno-genie",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "predev": "npm run build -w @xeno/shared && npm run build -w @xeno/database",
+    "dev": "concurrently -n web,api,simulator -c cyan,magenta,yellow \"npm run dev -w @xeno/web\" \"npm run dev -w @xeno/api\" \"npm run dev -w @xeno/channel-simulator\"",
+    "build": "npm run build -w @xeno/shared && npm run build -w @xeno/database && npm run build -w @xeno/api && npm run build -w @xeno/channel-simulator && npm run build -w @xeno/web",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "test": "npm run test -ws --if-present",
+    "lint": "npm run lint -ws --if-present",
+    "db:generate": "npm run db:generate -w @xeno/database",
+    "db:push": "npm run db:push -w @xeno/database",
+    "db:migrate": "npm run db:migrate -w @xeno/database",
+    "db:seed": "npm run db:seed -w @xeno/database",
+    "db:studio": "npm run db:studio -w @xeno/database"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
