@@ -20,13 +20,25 @@ export async function dashboard() {
         take: 5,
         include: { _count: { select: { communications: true } } },
       }),
-      prisma.communicationEvent.groupBy({
-        by: ["type"],
-        where: { communication: { campaign: { brandId: brand.id } } },
-        _count: true,
+      prisma.communicationEvent.findMany({
+        where: {
+          communication: {
+            campaign: {
+              brandId: brand.id,
+            },
+          },
+        },
+        select: {
+          type: true,
+        },
       }),
     ]);
-  const counts = Object.fromEntries(eventGroups.map((row) => [row.type, row._count])) as Record<string, number>;
+
+  const counts = eventGroups.reduce((acc, event) => {
+    acc[event.type] = (acc[event.type] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
   return {
     brand,
     metrics: {
@@ -54,10 +66,16 @@ export async function dashboard() {
 export async function analytics() {
   const brand = await getBrand();
   const [byChannel, purchasedEvents, campaigns] = await Promise.all([
-    prisma.communication.groupBy({
-      by: ["channel", "status"],
-      where: { campaign: { brandId: brand.id } },
-      _count: true,
+    prisma.communication.findMany({
+      where: {
+        campaign: {
+          brandId: brand.id,
+        },
+      },
+      select: {
+        channel: true,
+        status: true,
+      },
     }),
     prisma.communicationEvent.findMany({
       where: { type: "PURCHASED", communication: { campaign: { brandId: brand.id } } },
@@ -70,14 +88,38 @@ export async function analytics() {
       include: { communications: { select: { status: true } } },
     }),
   ]);
+
+  const byChannelGrouped = byChannel.reduce((acc, item) => {
+    const existing = acc.find(
+      (row) => row.channel === item.channel && row.status === item.status
+    );
+
+    if (existing) {
+      existing._count += 1;
+    } else {
+      acc.push({
+        channel: item.channel,
+        status: item.status,
+        _count: 1,
+      });
+    }
+
+    return acc;
+  }, [] as Array<{
+    channel: string;
+    status: string;
+    _count: number;
+  }>);
+
   const revenue = purchasedEvents.reduce((sum, event) => {
     const metadata = event.metadata as { revenue?: number };
     return sum + Number(metadata.revenue ?? 0);
   }, 0);
+
   return {
     revenue,
     roi: revenue ? Math.round((revenue / Math.max(1, campaigns.length * 150)) * 100) / 100 : 0,
-    byChannel,
+    byChannel: byChannelGrouped,
     campaigns: campaigns.map((campaign) => ({
       id: campaign.id,
       name: campaign.name,
