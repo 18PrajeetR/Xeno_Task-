@@ -122,3 +122,13 @@ router.post("/callbacks/channel-events", asyncHandler(async (request, response) 
   response.json(await ingestEvent(event));
 }));
 
+router.get("/dashboard-test", asyncHandler(async (_req, res) => {
+  const brand = await getBrand();
+
+  const customers = await prisma.customer.count({
+    where: { brandId: brand.id }
+  });
+
+  res.json({ customers });
+}));
+
