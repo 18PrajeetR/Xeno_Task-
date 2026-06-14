@@ -121,3 +121,30 @@ router.post("/callbacks/channel-events", asyncHandler(async (request, response) 
   const event = lifecycleEventSchema.parse(request.body);
   response.json(await ingestEvent(event));
 }));
+
+router.get("/debug", async (_req, res) => {
+  try {
+    const brand = await prisma.brand.findFirst();
+    const campaignCount = await prisma.campaign.count();
+
+    res.json({
+      success: true,
+      brand,
+      campaignCount,
+    });
+  } catch (error) {
+    console.error("DEBUG ROUTE ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? {
+              name: error.name,
+              message: error.message,
+              stack: error.stack,
+            }
+          : String(error),
+    });
+  }
+});
